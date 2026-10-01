@@ -1,0 +1,105 @@
+from pathlib import Path
+import re, json
+root=Path('/mnt/data/v4work')
+server=root/'server.js'
+public=root/'public/index.html'
+admin=root/'public/admin.html'
+
+s=server.read_text(encoding='utf-8')
+s=s.replace("const defaultData = {videos: [], affairs: [], assets: []};", "const defaultData = {videos: [], affairs: [], assets: [], achievers: [], comments: [], settings: {phone:'+91 96149 41455', youtube:'https://youtube.com/@scienceexpressbysurajit', facebook:'https://www.facebook.com/share/1F21diM9hD/', telegram:'https://t.me/+lDDwpgOh3FM4MDk1', live:{active:false,title:'SS Study Centre Live Class',description:'Live classes for Railway and Government Job preparation.',youtubeUrl:'',schedule:''}}};")
+s=s.replace("  res.json({\n    videos: db.videos.map(v=>({...v})),\n    affairs: db.affairs.map(a=>({...a})),\n    assets: db.assets.map(a=>({...a}))\n  });", "  res.json({\n    videos: db.videos.map(v=>({...v})),\n    affairs: db.affairs.map(a=>({...a})),\n    assets: db.assets.map(a=>({...a})),\n    achievers: db.achievers.map(a=>({...a})),\n    comments: db.comments.slice().sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)).slice(0,100),\n    settings: db.settings\n  });")
+insert = r'''
+
+app.get('/api/live', (req,res)=>res.json(db.settings?.live || defaultData.settings.live));
+app.get('/api/comments', (req,res)=>res.json(db.comments.slice().sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)).slice(0,100)));
+app.post('/api/comments',(req,res)=>{
+  const name=String(req.body.name||'Student').trim().slice(0,60);
+  const message=String(req.body.message||'').trim().slice(0,500);
+  if(!message) return res.status(400).json({error:'Comment লিখুন'});
+  const item={id:id(),name:name||'Student',message,createdAt:new Date().toISOString()};
+  db.comments.push(item); saveData(); res.json(item);
+});
+app.post('/api/admin/settings',auth,(req,res)=>{
+  const b=req.body||{};
+  db.settings={...defaultData.settings,...db.settings,
+    phone:String(b.phone??db.settings.phone||''),youtube:String(b.youtube??db.settings.youtube||''),facebook:String(b.facebook??db.settings.facebook||''),telegram:String(b.telegram??db.settings.telegram||''),
+    live:{...defaultData.settings.live,...(db.settings?.live||{}),active:!!b.liveActive,title:String(b.liveTitle??db.settings.live.title||''),description:String(b.liveDescription??db.settings.live.description||''),youtubeUrl:String(b.liveYoutubeUrl??db.settings.live.youtubeUrl||''),schedule:String(b.liveSchedule??db.settings.live.schedule||'')}};
+  saveData(); res.json(db.settings);
+});
+app.post('/api/admin/achiever',auth,upload.single('image'),(req,res)=>{
+  if(!req.file || !req.file.mimetype.startsWith('image/')) return res.status(400).json({error:'Student photo required'});
+  const item={id:id(),name:String(req.body.name||'Student'),detail:String(req.body.detail||''),year:String(req.body.year||''),url:'/uploads/'+req.file.filename,createdAt:new Date().toISOString()};
+  db.achievers.push(item); saveData(); res.json(item);
+});
+app.delete('/api/admin/achievers/:id',auth,(req,res)=>{const i=db.achievers.findIndex(x=>x.id===req.params.id);if(i<0)return res.sendStatus(404);const [a]=db.achievers.splice(i,1);removeFile(a.url);saveData();res.json({ok:true});});
+app.delete('/api/admin/comments/:id',auth,(req,res)=>{const i=db.comments.findIndex(x=>x.id===req.params.id);if(i<0)return res.sendStatus(404);db.comments.splice(i,1);saveData();res.json({ok:true});});
+'''
+s=s.replace("app.post('/api/admin/youtube',auth,(req,res)=>{", insert+"\napp.post('/api/admin/youtube',auth,(req,res)=>{")
+server.write_text(s,encoding='utf-8')
+
+p=public.read_text(encoding='utf-8')
+# remove visitor upload wording and improve library copy
+p=p.replace('<p>Phone বা laptop থেকে নিজের content যোগ করুন।</p>', '<p>প্রকাশিত classes, Current Affairs, notes ও learning resources এখানে দেখা যাবে।</p>')
+p=p.replace('<span class="section-tag">YOUR CONTENT</span><h2>Upload & Media Library</h2>', '<span class="section-tag">STUDY RESOURCES</span><h2>Study Centre Updates</h2>')
+p=p.replace('<span class="section-tag">PUBLISHED CONTENT</span><h3 style="margin-top:8px">Latest Study Centre Content</h3>', '<span class="section-tag">PUBLISHED CONTENT</span><h3 style="margin-top:8px">Latest Updates</h3>')
+# team caption styling via CSS append
+css_add='''\n/* V4 black & gold refinements */\n.team-caption{background:#0b0b0b;color:#efe5cf;border-top:1px solid rgba(229,184,59,.28)}\n.team-caption h3{color:#e5b83f!important}.team-caption p{color:#c9b98f!important}.team-photo{border-color:rgba(229,184,59,.38)}\n.live-section{background:radial-gradient(circle at 15% 0%,#211b0a 0%,#0a0a0a 48%,#050505 100%)!important;color:#fff}\n.live-card{display:grid;grid-template-columns:1.45fr .75fr;gap:22px}.live-player{aspect-ratio:16/9;background:#000;border:1px solid rgba(229,184,59,.35);border-radius:20px;overflow:hidden;box-shadow:0 18px 45px rgba(0,0,0,.4)}.live-player iframe{width:100%;height:100%;border:0}.live-info{background:linear-gradient(145deg,#17130c,#0c0c0c);border:1px solid rgba(229,184,59,.28);border-radius:20px;padding:26px}.live-badge{display:inline-flex;align-items:center;gap:7px;background:#2a0b0b;color:#ffb3b3;border:1px solid #7f2525;border-radius:999px;padding:7px 10px;font-size:11px;font-weight:900;letter-spacing:.8px}.live-badge.off{background:#17130c;color:#c9b98f;border-color:rgba(229,184,59,.25)}.comment-box{margin-top:22px;background:#0d0d0d;border:1px solid rgba(229,184,59,.22);border-radius:20px;padding:22px}.comment-form{display:grid;grid-template-columns:.35fr 1fr auto;gap:10px}.comment-form input,.comment-form textarea{background:#15130f;border-color:#5b4a22;color:#fff}.comment-list{display:grid;gap:10px;margin-top:15px}.comment{background:#14120e;border:1px solid rgba(229,184,59,.15);border-radius:14px;padding:13px}.comment b{color:#e5b83f}.comment small{color:#9f916f}.achiever-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}.achiever-card{background:#11100d;border:1px solid rgba(229,184,59,.25);border-radius:18px;overflow:hidden}.achiever-card img{width:100%;height:250px;object-fit:cover;background:#050505}.achiever-body{padding:15px}.achiever-body h3{margin:0 0 4px;color:#e5b83f}.achiever-body p{margin:0;color:#c9b98f;font-size:13px}.gold-note{color:#e5b83f!important}\n@media(max-width:900px){.live-card{grid-template-columns:1fr}.achiever-grid{grid-template-columns:repeat(2,1fr)}.comment-form{grid-template-columns:1fr}}\n@media(max-width:620px){.achiever-grid{grid-template-columns:1fr}}\n'''
+p=p.replace('</style>',css_add+'</style>',1)
+# insert live section before current affairs
+live_html='''\n    <section class="section live-section" id="live-class">\n      <div class="section-head">\n        <div><span class="section-tag light">LIVE CLASS</span><h2>Live Class with SS Study Centre</h2></div>\n        <p>Live Railway, Science, Maths ও Technical classes — students সরাসরি class দেখতে ও প্রশ্ন করতে পারবে।</p>\n      </div>\n      <div class="live-card">\n        <div>\n          <div class="live-player" id="livePlayer"><div class="empty-state" style="height:100%;display:grid;place-items:center;color:#c9b98f"><div><div style="font-size:42px">▶</div><p>পরবর্তী live class-এর জন্য অপেক্ষা করুন।</p></div></div></div>\n          <div class="comment-box"><h3>Student Comments & Questions</h3><p class="muted">Class চলাকালীন আপনার প্রশ্ন বা comment লিখতে পারেন।</p><form id="commentForm" class="comment-form"><input id="commentName" placeholder="আপনার নাম" maxlength="60"><textarea id="commentMessage" rows="1" placeholder="আপনার প্রশ্ন / comment" maxlength="500" required></textarea><button class="btn primary" type="submit">Post</button></form><div id="commentMsg" class="muted" style="margin-top:8px"></div><div id="commentList" class="comment-list"></div></div>\n        </div>\n        <div class="live-info"><span id="liveBadge" class="live-badge off">● OFFLINE</span><h3 id="liveTitle" style="margin-top:15px">SS Study Centre Live Class</h3><p id="liveDescription" class="muted">Live class-এর schedule এখানে প্রকাশ হবে।</p><p id="liveSchedule" class="gold-note"></p><a id="liveOpen" class="btn primary full" href="#" target="_blank" rel="noopener" style="display:none">Open Live Class ↗</a></div>\n      </div>\n    </section>\n'''
+p=p.replace('    <section class="section current-section" id="current-affairs">',live_html+'\n    <section class="section current-section" id="current-affairs">')
+# insert achiever section before branches
+ach_html='''\n    <section class="section dark" id="success-stories">\n      <div class="section-head"><div><span class="section-tag light">SUCCESS STORIES</span><h2>আমাদের সফল ছাত্রছাত্রীরা</h2></div><p>SS Study Centre থেকে যারা চাকরি পেয়েছে, তাদের achievements ও ছবি এখানে প্রকাশ করা যাবে।</p></div>\n      <div id="achieverGrid" class="achiever-grid"></div><div id="emptyAchievers" class="empty-state"><div>🏆</div><p>সফল ছাত্রছাত্রীদের ছবি ও achievement শীঘ্রই এখানে যোগ হবে।</p></div>\n    </section>\n'''
+p=p.replace('    <section class="section dark" id="branches">',ach_html+'\n    <section class="section dark" id="branches">')
+# nav links
+p=p.replace('<a href="#faculty">Faculty</a>', '<a href="#faculty">Faculty</a>\n        <a href="#live-class">Live Class</a>\n        <a href="#success-stories">Success Stories</a>')
+# JS state
+p=p.replace('let videos=[], affairs=[], assets=[], activeFilter="all";', 'let videos=[], affairs=[], assets=[], achievers=[], comments=[], settings={}, activeFilter="all";')
+# append render functions before load
+extra_js=r'''
+function youtubeId(input){input=String(input||'').trim();if(/^[A-Za-z0-9_-]{11}$/.test(input))return input;try{const u=new URL(input);if(u.hostname.includes('youtu.be'))return u.pathname.slice(1,12);const q=u.searchParams.get('v');if(q)return q.slice(0,11);const p=u.pathname.split('/');for(const k of ['embed','shorts','live']){const i=p.indexOf(k);if(i>=0&&p[i+1])return p[i+1].slice(0,11)}}catch{}return null}
+function renderLive(){const l=settings.live||{};const player=document.getElementById('livePlayer'),badge=document.getElementById('liveBadge');document.getElementById('liveTitle').textContent=l.title||'SS Study Centre Live Class';document.getElementById('liveDescription').textContent=l.description||'Live class-এর schedule এখানে প্রকাশ হবে।';document.getElementById('liveSchedule').textContent=l.schedule?`Schedule: ${l.schedule}`:'';const vid=youtubeId(l.youtubeUrl||'');if(l.active&&vid){badge.className='live-badge';badge.textContent='● LIVE NOW';player.innerHTML=`<iframe src="https://www.youtube.com/embed/${encodeURIComponent(vid)}?autoplay=0" title="${esc(l.title||'Live Class')}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>`;const a=document.getElementById('liveOpen');a.href=l.youtubeUrl;a.style.display='inline-flex'}else{badge.className='live-badge off';badge.textContent='● OFFLINE';player.innerHTML=`<div class="empty-state" style="height:100%;display:grid;place-items:center;color:#c9b98f"><div><div style="font-size:42px">▶</div><p>${esc(l.schedule?'পরবর্তী live class: '+l.schedule:'পরবর্তী live class-এর জন্য অপেক্ষা করুন।')}</p></div></div>`;document.getElementById('liveOpen').style.display='none'}}
+function renderComments(){const el=document.getElementById('commentList');if(!el)return;el.innerHTML=(comments||[]).map(c=>`<div class="comment"><b>${esc(c.name||'Student')}</b> <small>• ${fmt(c.createdAt)}</small><div style="margin-top:5px;color:#eee8da;white-space:pre-wrap">${esc(c.message)}</div></div>`).join('')||'<div class="muted">এখনও কোনো comment নেই।</div>'}
+function renderAchievers(){const grid=document.getElementById('achieverGrid'),empty=document.getElementById('emptyAchievers');if(!grid)return;grid.innerHTML=(achievers||[]).slice().reverse().map(a=>`<article class="achiever-card"><img src="${esc(a.url)}" alt="${esc(a.name)}"><div class="achiever-body"><h3>${esc(a.name)}</h3><p>${esc(a.detail||'SS Study Centre student')}</p>${a.year?`<p class="gold-note" style="margin-top:5px">${esc(a.year)}</p>`:''}</div></article>`).join('');empty.hidden=(achievers||[]).length>0}
+'''
+p=p.replace('async function load(){',extra_js+'\nasync function load(){')
+p=p.replace('videos=d.videos||[];affairs=d.affairs||[];assets=d.assets||[];renderVideos();renderAffairs();renderLibrary();', 'videos=d.videos||[];affairs=d.affairs||[];assets=d.assets||[];achievers=d.achievers||[];comments=d.comments||[];settings=d.settings||{};renderVideos();renderAffairs();renderLibrary();renderLive();renderComments();renderAchievers();')
+# add comment form listener before year
+comment_js="""
+const commentForm=document.getElementById('commentForm');if(commentForm)commentForm.addEventListener('submit',async e=>{e.preventDefault();const msg=document.getElementById('commentMsg');try{const r=await fetch('/api/comments',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:document.getElementById('commentName').value,message:document.getElementById('commentMessage').value})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Comment failed');document.getElementById('commentMessage').value='';msg.textContent='Comment posted.';const c=await fetch('/api/comments',{cache:'no-store'});comments=await c.json();renderComments()}catch(x){msg.textContent=x.message}});
+"""
+p=p.replace("document.getElementById('year').textContent=new Date().getFullYear();",comment_js+"\ndocument.getElementById('year').textContent=new Date().getFullYear();")
+public.write_text(p,encoding='utf-8')
+
+# Admin: replace CSS/theme and add tabs/forms + JS endpoints.
+a=admin.read_text(encoding='utf-8')
+a=a.replace(':root{--navy:#0b1230;--blue:#1d4ed8;--bg:#f4f7fb;--card:#fff;--text:#18213a;--muted:#68728a;--danger:#dc2626}', ':root{--navy:#090909;--blue:#e5b83f;--bg:#0b0b0b;--card:#12110e;--text:#f4eee1;--muted:#b7a98a;--danger:#dc2626}')
+a=a.replace('body{margin:0;background:var(--bg);font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;color:var(--text)}header{background:linear-gradient(135deg,#0b1230,#173c8c);', 'body{margin:0;background:var(--bg);font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;color:var(--text)}header{background:linear-gradient(135deg,#050505,#1b1507);')
+a=a.replace('.card{background:var(--card);', '.card{background:var(--card);border:1px solid rgba(229,184,59,.22);')
+a=a.replace('input,textarea,select{width:100%;margin-top:7px;padding:12px;border:1px solid #d7dce7;border-radius:10px;font:inherit}', 'input,textarea,select{width:100%;margin-top:7px;padding:12px;border:1px solid #5b4a22;border-radius:10px;font:inherit;background:#17140e;color:#fff}')
+a=a.replace('.primary{background:var(--blue);color:#fff}', '.primary{background:linear-gradient(135deg,#f0c84b,#b98d20);color:#090909}')
+a=a.replace('.ghost{background:#eef2ff;color:#1e3a8a}', '.ghost{background:#241d0d;color:#e5b83f;border:1px solid rgba(229,184,59,.3)}')
+# add new tabs after PDF button
+old='<button class="btn" data-tab="pdf">📄 PDF</button></div>'
+new='<button class="btn" data-tab="pdf">📄 PDF</button><button class="btn" data-tab="live">🔴 Live Class</button><button class="btn" data-tab="achiever">🏆 Success Stories</button><button class="btn" data-tab="settings">⚙ Settings</button></div>'
+a=a.replace(old,new)
+# add forms before msg div
+marker='<div id="pdf" class="tab hidden"><form id="pdfForm"><label>PDF Title<input name="title" required></label><label>PDF File<input name="pdf" type="file" accept="application/pdf" required></label><button class="btn primary">Upload PDF</button></form></div><div id="msg"'
+replacement='''<div id="pdf" class="tab hidden"><form id="pdfForm"><label>PDF Title<input name="title" required></label><label>PDF File<input name="pdf" type="file" accept="application/pdf" required></label><button class="btn primary">Upload PDF</button></form></div>
+<div id="live" class="tab hidden"><form id="liveForm"><label><input name="liveActive" type="checkbox" style="width:auto;margin-right:8px"> Live class is ON</label><label>Live Class Title<input name="liveTitle" placeholder="SS Study Centre Live Class"></label><label>YouTube Live URL<input name="liveYoutubeUrl" placeholder="https://www.youtube.com/watch?v=..."></label><label>Schedule<input name="liveSchedule" placeholder="Today 7:00 PM"></label><label>Description<textarea name="liveDescription"></textarea></label><button class="btn primary">Save Live Class</button></form><p class="muted">Live stream করতে YouTube-এ live শুরু করে তার link এখানে দিন।</p></div>
+<div id="achiever" class="tab hidden"><form id="achieverForm"><div class="grid"><label>Student Name<input name="name" required placeholder="Student name"></label><label>Year / Exam<input name="year" placeholder="2026 • RRB NTPC"></label></div><label>Achievement / Job Details<input name="detail" placeholder="Selected in Railway / Government Job"></label><label>Student Photo<input name="image" type="file" accept="image/*" required></label><button class="btn primary">Add Success Story</button></form></div>
+<div id="settings" class="tab hidden"><form id="settingsForm"><div class="grid"><label>Phone<input name="phone"></label><label>YouTube<input name="youtube"></label><label>Facebook<input name="facebook"></label><label>Telegram<input name="telegram"></label></div><button class="btn primary">Save Website Settings</button></form></div><div id="msg"'''
+a=a.replace(marker,replacement)
+# extend row/load JS and forms
+needle="$('#pdfForm').onsubmit=e=>{e.preventDefault();formPost(e.target,'/api/admin/pdf',true).catch(x=>msg(x.message))};"
+add=needle+'''\n$('#liveForm').onsubmit=async e=>{e.preventDefault();try{const f=new FormData(e.target);const body=Object.fromEntries(f);body.liveActive=e.target.liveActive.checked;await api('/api/admin/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});msg('Live Class settings saved.');load()}catch(x){msg(x.message)}};\n$('#achieverForm').onsubmit=e=>{e.preventDefault();formPost(e.target,'/api/admin/achiever',true).catch(x=>msg(x.message))};\n$('#settingsForm').onsubmit=async e=>{e.preventDefault();try{const f=new FormData(e.target);await api('/api/admin/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.fromEntries(f))});msg('Website settings saved.');load()}catch(x){msg(x.message)}};'''
+a=a.replace(needle,add)
+# load render achievers/comments and settings form
+oldload="async function load(){data=await api('/api/public');let h='';(data.videos||[]).slice().reverse().forEach(x=>h+=row(x.kind==='youtube'?'YouTube':'Uploaded Video',x));(data.affairs||[]).slice().reverse().forEach(x=>h+=row('Current Affairs',x));(data.assets||[]).slice().reverse().forEach(x=>h+=row(x.type.toUpperCase(),x));$('#items').innerHTML=h||'<p>No content uploaded yet.</p>}"
+newload="""async function load(){data=await api('/api/public');let h='';(data.videos||[]).slice().reverse().forEach(x=>h+=row(x.kind==='youtube'?'YouTube':'Uploaded Video',x));(data.affairs||[]).slice().reverse().forEach(x=>h+=row('Current Affairs',x));(data.assets||[]).slice().reverse().forEach(x=>h+=row(x.type.toUpperCase(),x));(data.achievers||[]).slice().reverse().forEach(x=>h+=row('Success Story',x));(data.comments||[]).slice().reverse().forEach(x=>h+=`<div class=\"item\"><div><b>${esc(x.name)}</b><br><small>${esc(x.message)}</small></div><button class=\"btn danger\" onclick=\"del('Comment','${x.id}')\">Delete</button></div>`);$('#items').innerHTML=h||'<p>No content uploaded yet.</p>';const s=data.settings||{};const l=s.live||{};const f=$('#settingsForm');if(f){f.phone.value=s.phone||'';f.youtube.value=s.youtube||'';f.facebook.value=s.facebook||'';f.telegram.value=s.telegram||''}const lf=$('#liveForm');if(lf){lf.liveActive.checked=!!l.active;lf.liveTitle.value=l.title||'';lf.liveYoutubeUrl.value=l.youtubeUrl||'';lf.liveSchedule.value=l.schedule||'';lf.liveDescription.value=l.description||''}}"""
+a=a.replace(oldload,newload)
+a=a.replace("const map={'YouTube':'videos','Uploaded Video':'videos','Current Affairs':'affairs','IMAGE':'assets','PDF':'assets'};await api('/api/admin/'+map[type]+'/'+id,{method:'DELETE'});load()", "const map={'YouTube':'videos','Uploaded Video':'videos','Current Affairs':'affairs','IMAGE':'assets','PDF':'assets','Success Story':'achievers','Comment':'comments'};await api('/api/admin/'+map[type]+'/'+id,{method:'DELETE'});load()")
+admin.write_text(a,encoding='utf-8')
+
+# ensure data file has new schema
+(root/'data/content.json').write_text(json.dumps({"videos":[],"affairs":[],"assets":[],"achievers":[],"comments":[],"settings":{"phone":"+91 96149 41455","youtube":"https://youtube.com/@scienceexpressbysurajit","facebook":"https://www.facebook.com/share/1F21diM9hD/","telegram":"https://t.me/+lDDwpgOh3FM4MDk1","live":{"active":False,"title":"SS Study Centre Live Class","description":"Live classes for Railway and Government Job preparation.","youtubeUrl":"","schedule":""}}},ensure_ascii=False,indent=2),encoding='utf-8')

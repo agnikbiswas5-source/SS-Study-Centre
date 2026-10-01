@@ -1,0 +1,9 @@
+{
+  "name": "ss-study-centre-website",
+  "version": "3.0.0",
+  "private": true,
+  "description": "SS Study Centre public website with private admin upload panel",
+  "main": "server.js",
+  "scripts": {"start": "node server.js"},
+  "dependencies": {"express": "^5.1.0", "multer": "^2.0.2"}
+}

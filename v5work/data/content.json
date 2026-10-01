@@ -1,0 +1,20 @@
+{
+  "videos": [],
+  "affairs": [],
+  "assets": [],
+  "achievers": [],
+  "comments": [],
+  "settings": {
+    "phone": "+91 96149 41455",
+    "youtube": "https://youtube.com/@scienceexpressbysurajit",
+    "facebook": "https://www.facebook.com/share/1F21diM9hD/",
+    "telegram": "https://t.me/+lDDwpgOh3FM4MDk1",
+    "live": {
+      "active": false,
+      "title": "SS Study Centre Live Class",
+      "description": "Live classes for Railway and Government Job preparation.",
+      "youtubeUrl": "",
+      "schedule": ""
+    }
+  }
+}
