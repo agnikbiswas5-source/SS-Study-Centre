@@ -1,5 +1,7 @@
 {
   "projects": {
-    "default": "ss-study-centre-2026"
-  }
+    "default": "ss-study-centre"
+  },
+  "targets": {},
+  "etags": {}
 }
